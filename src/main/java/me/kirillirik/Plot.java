@@ -58,7 +58,7 @@ public final class Plot {
 		
 		private String title = "";
 		private int width = 800;
-		private int height = 600;
+		private int height = width;
 		private Color backgroundColor = Color.WHITE;
 		private Color foregroundColor = Color.BLACK;
 		private Font titleFont = new Font("Arial", Font.BOLD, 16);

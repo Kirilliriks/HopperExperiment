@@ -38,18 +38,20 @@ public final class HopperExperiment {
         }
 
         // Воронка чётко над мишенью, шарики падают там где и были сгенерированы
-        launchRule(1, points, (hopperVector, point) -> 0.0);
+        final List<Vector2> first = launchRule(1, points, (hopperVector, point) -> 0.0);
 
         // Перемешаем воронку в обратную сторону от стороны куда упал шарик на расстояние между упавшим шариком и мишенью
         // Относительно последнего положения воронки
-        launchRule(2, points, (hopperVector, point) -> -point);
+        final List<Vector2> second =  launchRule(2, points, (hopperVector, point) -> -point);
 
         // Перемешаем воронку в обратную сторону от стороны куда упал шарик на расстояние между упавшим шариком и мишенью
         // Относительно центра мишени
-        launchRule(3, points, (hopperVector, point) -> -(hopperVector + point));
+        final List<Vector2> third = launchRule(3, points, (hopperVector, point) -> -(hopperVector + point));
 
         // Перемешаем воронку туда, где шарик был сброшен в прошлый раз [hopperVector + point]
-        launchRule(4, points, Double::sum);
+        final List<Vector2> four = launchRule(4, points, Double::sum);
+
+        generatePlot("all_in", first, second, third, four);
     }
 
     private List<Vector2> makeOffsetsByRule(Collection<Vector2> points, BiFunction<Double, Double, Double> hopperRule) {
@@ -71,30 +73,45 @@ public final class HopperExperiment {
         return result;
     }
 
-    private void launchRule(int ruleNumber, Collection<Vector2> points, BiFunction<Double, Double, Double> rule) {
+    private List<Vector2> launchRule(int ruleNumber, Collection<Vector2> points, BiFunction<Double, Double, Double> rule) {
         final List<Vector2> offsetPoints = makeOffsetsByRule(points, rule);
 
-        final Plot.Data data = Plot.data();
+        generatePlot("rule_" + ruleNumber, offsetPoints);
 
+        return offsetPoints;
+    }
+
+    @SafeVarargs
+    private void generatePlot(String title, Collection<Vector2>... pointsArray) {
         double maxDistance = 0;
         double avgDistance = 0;
         double minDistance = Double.MAX_VALUE;
-        for (final Vector2 point : offsetPoints) {
-            data.xy(point.x, point.y);
 
-            final double localDistance = Math.sqrt(Math.pow(-point.x, 2) + Math.pow(-point.y, 2));
-            if (maxDistance < localDistance) {
-                maxDistance = localDistance;
+        final List<Plot.Data> plotsData = new ArrayList<>();
+
+        int pointsSize = 0;
+        for (final Collection<Vector2> points : pointsArray) {
+            final Plot.Data data = Plot.data();
+            plotsData.add(data);
+
+            for (final Vector2 point : points) {
+                data.xy(point.x, point.y);
+
+                final double localDistance = Math.sqrt(Math.pow(-point.x, 2) + Math.pow(-point.y, 2));
+                if (maxDistance < localDistance) {
+                    maxDistance = localDistance;
+                }
+
+                if (minDistance > localDistance) {
+                    minDistance = localDistance;
+                }
+
+                avgDistance += localDistance;
+
+                pointsSize++;
             }
-
-            if (minDistance > localDistance) {
-                minDistance = localDistance;
-            }
-
-            avgDistance += localDistance;
         }
-
-        avgDistance /= offsetPoints.size();
+        avgDistance /= pointsSize;
 
 
         final String str = "Макс " + FORMAT.format(maxDistance)
@@ -103,7 +120,7 @@ public final class HopperExperiment {
 
         final Plot plot = Plot.plot(
                         Plot.plotOpts()
-                                .title("Rule " + ruleNumber)
+                                .title(title)
                                 .legend(Plot.LegendFormat.BOTTOM)
                 )
                 .xAxis("x", Plot.axisOpts()
@@ -111,18 +128,31 @@ public final class HopperExperiment {
                 )
                 .yAxis("y", Plot.axisOpts()
                         .range(-AREA_MAX_SIZE, AREA_MAX_SIZE)
-                )
-                .series(str, data,
-                        Plot.seriesOpts()
-                                .markerSize(15)
-                                .line(Plot.Line.NONE)
-                                .marker(Plot.Marker.CIRCLE)
-                                .markerColor(Color.GREEN)
-                                .color(Color.BLACK)
                 );
 
+        final Queue<Color> colors = new ArrayDeque<>();
+        colors.add(Color.GREEN);
+        colors.add(Color.RED);
+        colors.add(Color.BLUE);
+        colors.add(Color.YELLOW);
+        colors.add(Color.MAGENTA);
+
+        int i = 1;
+        for (final Plot.Data data : plotsData) {
+            plot.series(
+                    str + " (" + i++ + ")",
+                    data,
+                    Plot.seriesOpts()
+                            .markerSize(10)
+                            .line(Plot.Line.NONE)
+                            .marker(Plot.Marker.CIRCLE)
+                            .markerColor(colors.poll())
+                            .color(Color.BLACK)
+            );
+        }
+
         try {
-            plot.save("rule_" + ruleNumber, "png");
+            plot.save(title, "png");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
